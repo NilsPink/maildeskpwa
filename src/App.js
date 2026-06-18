@@ -1,0 +1,1264 @@
+import { useState, useEffect, useRef } from "react";
+import React from "react";
+
+const fl = document.createElement("link");
+fl.rel = "stylesheet";
+fl.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap";
+document.head.appendChild(fl);
+
+const TH = {
+  bg:"#F0F4F8", surface:"#FFFFFF", border:"#E2E8F0",
+  text:"#1A202C", sub:"#4A5568", muted:"#A0AEC0",
+  accent:"#2C5FBF", accentBg:"#EBF0FA", navy:"#1C3358",
+  green:"#166534", greenBg:"#DCFCE7", greenBorder:"#86EFAC",
+  amber:"#78350F", amberBg:"#FEF3C7", amberBorder:"#FCD34D",
+  red:"#991B1B", redBg:"#FEE2E2", redBorder:"#FCA5A5",
+  purple:"#5B21B6", purpleBg:"#EDE9FE", purpleBorder:"#C4B5FD",
+  teal:"#0F766E", tealBg:"#CCFBF1", tealBorder:"#5EEAD4",
+};
+
+const CAT = {
+  afsluiting:      { color:TH.green,  bg:TH.greenBg,  border:TH.greenBorder,  icon:"✅" },
+  "info opvragen": { color:TH.accent, bg:TH.accentBg, border:"#93C5FD",       icon:"🔍" },
+  ontwikkeling:    { color:TH.amber,  bg:TH.amberBg,  border:TH.amberBorder,  icon:"🛠️" },
+  technisch:       { color:TH.teal,   bg:TH.tealBg,   border:TH.tealBorder,   icon:"⚙️" },
+  intern:          { color:TH.purple, bg:TH.purpleBg, border:TH.purpleBorder, icon:"👤" },
+  opvolging:       { color:TH.sub,    bg:"#F1F3F6",   border:"#D1D5DB",       icon:"⏸️" },
+  beheer:          { color:TH.amber,  bg:TH.amberBg,  border:TH.amberBorder,  icon:"🛡️" },
+  escalatie:       { color:TH.red,    bg:TH.redBg,    border:TH.redBorder,    icon:"🚨" },
+  "operationeel overleg": { color:"#6D28D9", bg:"#F5F3FF",  border:"#DDD6FE",       icon:"📅" },
+};
+const CATS = Object.keys(CAT);
+const gc = (c) => CAT[c] || CAT.opvolging;
+
+const DEVOPS_IDS = new Set(["naar-devops","naar-ipa-devops"]);
+
+// ── CHIP GROUPS ───────────────────────────────────────────────────────────────
+const CHIP_GROUPS = [
+  {
+    key:"situatie", title:"1. Wat is de situatie?", multi:true,
+    color:{ color:TH.accent, bg:TH.accentBg, border:"#93C5FD" },
+    chips:[
+      { id:"inlogprobleem",   label:"🔐 Inlogprobleem",          prompt:"er is een inlogprobleem bij de klant" },
+      { id:"2fa-reset",       label:"🔑 2FA / authenticator",     prompt:"de 2FA/authenticator is gereset (zowel ACC als PRD)" },
+      { id:"storing-bug",     label:"⚡ Storing / bug",            prompt:"er is een storing of bug gemeld" },
+      { id:"info-opvragen",   label:"❓ Extra info opvragen",      prompt:"er aanvullende informatie nodig is om de melding te kunnen onderzoeken" },
+      { id:"screenshot",      label:"📸 Screenshot opvragen",     prompt:"gevraagd wordt een screenshot van de foutmelding te sturen" },
+      { id:"isambugreport",   label:"🐛 Bug → iSam Support",      prompt:"de bug wordt doorgestuurd naar iSam Support en alle verplichte informatie (tenant, omgeving, browser, datum/tijd, gebruikersnaam, rollen, reproductiestappen) wordt gevraagd" },
+      { id:"update-geven",    label:"📢 Update geven",            prompt:"een statusupdate gegeven wordt aan de klant over de voortgang van het onderzoek" },
+      { id:"geen-update-nog", label:"⏱️ Nog geen update",         prompt:"er nog geen nieuwe update is maar het team er actief mee bezig is" },
+      { id:"doorsturen",      label:"↗️ Doorsturen",              prompt:"de melding wordt doorgezet naar de juiste persoon of afdeling" },
+      { id:"verzendproces",   label:"📨 Verzendproces checken",   prompt:"de verzendprocessen in iSam MKS worden gecontroleerd voor de betreffende gemeente" },
+      { id:"pcr-nieuw",       label:"📋 PCR aanmaken",             prompt:"er een PCR-taak is aangemaakt die is goedgekeurd door de productowner en toegevoegd aan de werkvoorraad" },
+      { id:"pcr-wachtrij",    label:"🔄 PCR in wachtrij",          prompt:"de PCR nog in de wachtrij staat bij de productowner en het volgnummer nog volgt" },
+      { id:"pcr-opgeleverd",  label:"🎯 PCR opgeleverd",           prompt:"de PCR-taak is opgelost en opgeleverd door het ontwikkelteam" },
+      { id:"in-ontwikkeling", label:"🛠️ In ontwikkeling",          prompt:"de feature of bugfix in ontwikkeling is bij het team" },
+      { id:"afsluiten",       label:"✅ Melding afsluiten",        prompt:"de melding hierbij gesloten wordt" },
+      { id:"gereed",          label:"⏳ Op gereed zetten",         prompt:"de melding op 'gereed' wordt gezet waarna TOPdesk na 5 werkdagen automatisch afmeldt" },
+      { id:"reminder",        label:"🔔 Reminder",                 prompt:"een herinnering gestuurd wordt omdat er nog geen reactie is ontvangen" },
+      { id:"rca",             label:"📄 RCA aanvragen",            prompt:"een Root Cause Analysis (RCA) aangevraagd wordt na het oplossen van een P1 of P2 melding, deadline 5 werkdagen" },
+      { id:"beheerrol",       label:"🛡️ Beheerrol ingeperkt",      prompt:"de beheerdersrol tijdelijk ingeperkt is vanwege privacy-risico's, met een workaround via TOPdesk aanvraag" },
+      { id:"civision",        label:"🔒 Civision wachtwoord",      prompt:"het Civision wachtwoord bijna verloopt of verlopen is" },
+      { id:"overleg-inplannen", label:"📅 Op. overleg inplannen",       prompt:"een operationeel overleg met de gemeente ingepland moet worden" },
+      { id:"overleg-uitnodiging", label:"📨 Op. overleg uitnodiging",    prompt:"een officiële uitnodiging verstuurd wordt voor het operationeel overleg" },
+      { id:"overleg-input",     label:"📝 Op. overleg input opvragen",   prompt:"1 week voor het operationeel overleg input wordt gevraagd: welke meldingen of punten wil de gemeente bespreken?" },
+      { id:"overleg-noshow",    label:"👻 No-show op. overleg",          prompt:"de gemeente niet is verschenen bij het operationeel overleg en een nieuw moment ingepland moet worden" },
+      { id:"overleg-voorbereiding", label:"📋 Op. overleg voorbereiding", prompt:"het operationeel overleg voorbereid wordt: tickets doornemen, actiepunten vorig overleg checken, knelpunten identificeren" },
+      { id:"overleg-pauzeren",  label:"⏸️ Op. overleg pauzeren",        prompt:"het operationeel overleg tijdelijk gepauzeerd of minder frequent ingepland wordt omdat er weinig te bespreken valt" },
+      { id:"yonder-status",     label:"🔄 Status vragen Yonder",       prompt:"een statusupdate gevraagd wordt aan Yonder via iSam DevOps of deze wordt opgepakt en wanneer kan een update verwacht worden" },
+    ],
+  },
+  {
+    key:"afsluiting", title:"2. Afsluiting / verwachting?", multi:true,
+    color:{ color:TH.green, bg:TH.greenBg, border:TH.greenBorder },
+    chips:[
+      { id:"hoop-info",        label:"🙏 Ik hoop dat je genoeg hebt aan deze info",  prompt:"eindig met de zin dat je hoopt dat de klant genoeg heeft aan deze informatie" },
+      { id:"afwachting",       label:"⏸️ In afwachting van je reactie",              prompt:"sluit af met dat je in afwachting bent van de reactie van de klant" },
+      { id:"kan-testen",       label:"🧪 Kan je het testen?",                        prompt:"vraag de klant of hij/zij het kan testen en terugkoppelen" },
+      { id:"update-volgt",     label:"📬 Zodra ik meer weet stuur ik een update",    prompt:"laat weten dat je een update stuurt zodra er meer bekend is" },
+      { id:"neem-contact",     label:"📞 Neem gerust contact op",                    prompt:"sluit af met dat de klant altijd contact op kan nemen bij vragen" },
+      { id:"nieuwe-melding",   label:"📝 Nieuwe melding aanmaken",                   prompt:"laat weten dat bij verdere vragen een nieuwe melding aangemaakt kan worden" },
+      { id:"laat-weten",       label:"💬 Laat het weten als er iets is",             prompt:"sluit af met dat de klant het vooral moet laten weten als er nog iets is" },
+      { id:"pak-op",           label:"⚡ We pakken het direct op",                   prompt:"benoem dat je het direct oppakt zodra er meer informatie is" },
+    ],
+  },
+  {
+    key:"doorzetten", title:"3. Doorzetten naar?", multi:false,
+    color:{ color:TH.purple, bg:TH.purpleBg, border:TH.purpleBorder },
+    chips:[
+      { id:"naar-klant",      label:"👤 Klant",              prompt:"gericht aan de klant/gemeente" },
+      { id:"naar-collega",    label:"🤝 Interne collega",     prompt:"gericht aan een interne collega" },
+      { id:"naar-devops",     label:"⚙️ iSam DevOps",        prompt:"gericht aan het iSam DevOps team" },
+      { id:"naar-ipa-devops", label:"⚙️ IPA DevOps",         prompt:"gericht aan het IPA DevOps team" },
+      { id:"naar-cloudops",   label:"☁️ CloudOps",            prompt:"gericht aan Cloud Operations" },
+      { id:"naar-consultant", label:"👔 Consultant",          prompt:"gericht aan de consultant" },
+      { id:"naar-po",         label:"📊 Product Owner",       prompt:"gericht aan de Product Owner" },
+      { id:"naar-jobport",    label:"🏢 Jobport",             prompt:"gericht aan onderleverancier Jobport (support@jobport.nl, antwoorden via prlg.servicedesk@pinkroccade.nl, vermeld prio + contactpersoon Pink + mailadres aanvrager)" },
+      { id:"naar-werkstap",   label:"🏢 Werkstap",            prompt:"gericht aan onderleverancier Werkstap (helpdesk@ptcwerkstap.nl, vermeld klant – meldingnummer – titel – prio – vraag)" },
+      { id:"naar-aiden",      label:"🏢 Aiden (Mendix)",      prompt:"gericht aan onderleverancier Aiden/Mendix (mendix.support@aiden.eu)" },
+    ],
+  },
+  {
+    key:"toon", title:"4. Toon?", multi:false,
+    color:{ color:TH.amber, bg:TH.amberBg, border:TH.amberBorder },
+    chips:[
+      { id:"toon-normaal",            label:"😊 Normaal",                  prompt:"vriendelijk en direct, geen onnodige opsmuk" },
+      { id:"toon-kort",               label:"⚡ Kort & bondig",             prompt:"zo kort mogelijk, alleen de essentie, geen overbodige zinnen" },
+      { id:"toon-begripvol",          label:"🤝 Begripvol",                prompt:"begrip tonen voor de situatie, erkennen dat het vervelend is" },
+      { id:"toon-urgent",             label:"🚨 Urgent",                   prompt:"gevoel van urgentie, duidelijk maken dat het direct opgepakt wordt" },
+      { id:"toon-proactief",          label:"🔮 Proactief",                prompt:"proactief, mogelijke vervolgvragen alvast beantwoorden" },
+      { id:"toon-oplossingsgericht",  label:"🎯 Oplossingsgericht",        prompt:"altijd afsluiten met een concrete vervolgstap of actie" },
+      { id:"toon-geruststellen",      label:"🕊️ Geruststellen",            prompt:"geruststellen, laten merken dat het goed komt en dat het team er bovenop zit" },
+      { id:"toon-zakelijk",           label:"📋 Zakelijk",                  prompt:"zakelijk en to the point, geen small talk" },
+      { id:"toon-geduldig",           label:"🌿 Geduldig",                  prompt:"rustig en geduldig, de klant heeft al een tijdje gewacht en dat wordt erkend" },
+      { id:"toon-enthousiast",        label:"⭐ Positief nieuws",           prompt:"positief en enthousiast, er is goed nieuws te melden" },
+      { id:"toon-verontschuldigend",  label:"🙏 Verontschuldigend",        prompt:"verontschuldigend voor het ongemak, erkennen dat er iets fout is gegaan" },
+      { id:"toon-duidelijk",          label:"🔎 Helder & instructief",      prompt:"heel helder en instructief, stap voor stap uitleggen zodat er geen verwarring is" },
+    ],
+  },
+];
+
+// ── SIGN OFF & TEMPLATES ──────────────────────────────────────────────────────
+const SIGN = "Met vriendelijk groet,\nNils van Griethuijsen";
+const SIGN_EN = "Kind regards,\nNils van Griethuijsen";
+
+const TMPL = [
+  { id:"t01", emoji:"📨", label:"Inhoudelijke reactie — gereed",      category:"afsluiting",    tags:["gereed","5 dagen"],
+    body:`Hoi [Klant],\n\nWe hebben een inhoudelijke reactie gestuurd op jullie melding. Omdat we geen aanvullende vragen of opmerkingen meer hebben ontvangen, zetten we de melding op gereed. Dit houdt in dat deze automatisch binnen 5 dagen wordt afgemeld.\n\nMocht er toch nog iets naar voren komen, laat het dan weten. We pakken het direct op zolang de melding nog openstaat. Daarna kun je altijd een nieuwe melding aanmaken.\n\n${SIGN}` },
+  { id:"t02", emoji:"✅", label:"Melding sluiten — standaard",         category:"afsluiting",    tags:["sluiten","nieuwe melding"],
+    body:`Hoi [Klant],\n\nIk sluit de melding hierbij. Mocht je later nog vragen hebben, laat het gerust weten.\n\n${SIGN}` },
+  { id:"t03", emoji:"✅", label:"Melding sluiten — na reactie",        category:"afsluiting",    tags:["sluiten","reactie"],
+    body:`Hoi [Klant],\n\nBedankt voor je reactie. Ik sluit de melding hierbij. Mochten er daarna nog vragen zijn, maak dan gerust een nieuwe melding aan.\n\n${SIGN}` },
+  { id:"t04", emoji:"⏳", label:"Gereed — 5 werkdagen TOPdesk",        category:"afsluiting",    tags:["gereed","5 werkdagen","TOPdesk"],
+    body:`Hoi [Klant],\n\nIk zet de melding op 'Gereed'. Je hebt nog vijf werkdagen om te reageren als je nog vragen hebt. Daarna sluit TOPdesk de melding automatisch.\n\nAls er na de sluiting nog iets speelt, kun je altijd een nieuwe melding aanmaken.\n\nBedankt voor je medewerking!\n\n${SIGN}` },
+  { id:"t05", emoji:"🎯", label:"PCR opgeleverd — melding sluiten",    category:"afsluiting",    tags:["PCR","opgeleverd","release"],
+    body:`Hoi [Klant],\n\nDe ontwikkeltaak voor deze situatie is opgelost en opgeleverd door het ontwikkelteam.\n\nIndicatie oplevering: Geplande release [versie nummer] (gepland, onder voorbehoud).\n\nIk sluit de melding hierbij. Bij verdere vragen hoor ik het graag in een nieuwe melding.\n\n${SIGN}` },
+  { id:"t06", emoji:"🔍", label:"Info opvragen — ZKN / makelaar",      category:"info opvragen", tags:["ZKN","makelaar","screenshot"],
+    body:`Hoi [Klant],\n\nVoor het verder onderzoeken van je melding heb ik nog wat gegevens nodig:\n\n• De ZKN‑berichten die betrekking hebben op deze situatie\n• Datum en tijdstip waarop het probleem zich voordeed\n• Het bericht vanuit de makelaar\n• Een screenshot van de mutaties\n• Een screenshot van alle tabbladen binnen het betreffende scherm\n\nZodra ik dit ontvangen heb, pak ik het verder op.\n\n${SIGN}` },
+  { id:"t07", emoji:"🔐", label:"Info opvragen — inlogproblemen",      category:"info opvragen", tags:["inlogproblemen","browser","cache"],
+    body:`Hoi [Klant],\n\nKan je de volgende stappen proberen?\n\n• Cache en cookies volledig leeg maken (let op: bereik instellen op 'alles')\n• Probeer een andere browser\n• Gebruik incognito/InPrivate modus\n• Typ de URL handmatig in\n• Is er verschil tussen de .ext en .gem URL?\n• Heeft de gebruiker minimaal een rol?\n• Probeer in te loggen vanaf een andere pc\n\nAls het dan nog niet werkt, ontvang ik graag:\n\n• Een beschrijving van de stappen die doorlopen zijn\n• Bij welke gebruikersnamen het niet werkt\n• Screenshots van de foutmelding\n• Wat er veranderd is sinds het nog wel werkte\n\nIk zie je reactie tegemoet.\n\n${SIGN}` },
+  { id:"t08", emoji:"🐛", label:"Bug doorsturen → iSam Support",       category:"info opvragen", tags:["bug","iSam Support"],
+    body:`Hoi [Klant],\n\nOm de bug door te sturen naar iSam Support heb ik de volgende informatie nodig. Zonder deze info wordt de melding niet opgepakt:\n\n• Tenantnaam, omgeving (PRD/ACC), semi-private of private\n• Beschrijving van het probleem\n• Browser type en versie\n• Datum en tijdstip\n• Gebruikersnaam waarbij het probleem optreedt\n• Rollen en permissies van de gebruiker\n• Reproductiestappen met screenshots of schermopname\n\nKan je dit aanleveren?\n\n${SIGN}` },
+  { id:"t09", emoji:"📋", label:"PCR aangemaakt — nummer bekend",      category:"ontwikkeling",  tags:["PCR","productowner","oplevertermijn"],
+    body:`Hoi [Klant],\n\nVoor deze situatie hebben we PCR-taak [SAM nummer] aangemaakt. De taak is goedgekeurd door de productowner en staat in de werkvoorraad van het ontwikkelteam.\n\nEen verwachte oplevertermijn kan ik nog niet geven — dat hangt af van de prioritering en capaciteit. [Onder voorbehoud gepland in [versie nummer].]\n\nZodra er meer bekend is, hoor je het via de meldingenlijst.\n\n${SIGN}` },
+  { id:"t10", emoji:"🔄", label:"PCR in wachtrij — nog geen nummer",  category:"ontwikkeling",  tags:["PCR","wachtrij","volgnummer"],
+    body:`Hoi [Klant],\n\nWe hebben een PCR aangemaakt op basis van jouw melding. Deze staat in de wachtrij bij de productowner. Zodra die goedgekeurd is, stuur ik je het volgnummer.\n\nBedankt voor het doorgeven!\n\n${SIGN}` },
+  { id:"t11", emoji:"🛠️", label:"In ontwikkeling — verwachte versie", category:"ontwikkeling",  tags:["ontwikkeling","versie"],
+    body:`Hoi [Klant],\n\nDit staat in ontwikkeling. We verwachten het op te leveren in versie [versie nummer] (gepland, onder voorbehoud). De releasenotities geven dan meer informatie.\n\nIk zet de melding op 'Gereed'. Na 5 werkdagen sluit TOPdesk de melding automatisch.\n\n${SIGN}` },
+  { id:"t12", emoji:"🔑", label:"2FA reset — inloginstructies",        category:"technisch",     tags:["2FA","QR-code","iSam","ACC","PRD"],
+    body:`Hoi [Klant],\n\nDe reset is uitgevoerd (zowel ACC als PRD). Zo log je voor het eerst in na de reset:\n\n1. Zorg dat je een authenticatie-app op je telefoon hebt. Verwijder de oude iSam-regel — tenzij de QR al eenmaal gescand is na de laatste reset, dan juist niet verwijderen.\n2. Log in via https://[gemeentenaam].ext.isamenleving.nl/web-app\n3. Scan de QR-code die éénmalig verschijnt. Daarna gebruik je bij elke login de code uit de authenticatie-app.\n\nKan je het testen en laten weten of het werkt?\n\n${SIGN}` },
+  { id:"t13", emoji:"⚙️", label:"Doorzetten naar DevOps — Engels",    category:"intern",        tags:["DevOps","Engels","update volgt"],
+    body:`Hi,\n\nI've forwarded this ticket to our DevOps team for further investigation.\n\nI'll send you an update as soon as I know more.\n\n${SIGN_EN}` },
+  { id:"t14", emoji:"🏢", label:"Doorgestuurd naar Jobport",           category:"intern",        tags:["Jobport","onderleverancier"],
+    body:`Hoi [Klant],\n\nIk heb de melding doorgestuurd naar Jobport. Zij pakken het op en nemen zo snel mogelijk contact op.\n\nZodra ik een update heb, laat ik het je weten.\n\n${SIGN}` },
+  { id:"t15", emoji:"🚨", label:"P1/P2 — update naar klant",          category:"escalatie",     tags:["P1","P2","escalatie","update"],
+    body:`Hoi [Klant],\n\nWe hebben je melding (meldingnummer: [SAM nummer]) opgepakt en zijn er actief mee bezig.\n\nZodra we meer weten, stuur ik je direct een update.\n\n${SIGN}` },
+  { id:"t16", emoji:"⏸️", label:"Wacht op reactie",                   category:"opvolging",     tags:["wachten","in afwachting"],
+    body:`Hoi [Klant],\n\nIk zet de melding in afwachting van je reactie. Laat het me weten zodra je meer weet.\n\n${SIGN}` },
+  { id:"t17", emoji:"🔔", label:"Reminder — nog geen reactie",         category:"opvolging",     tags:["reminder","7 dagen"],
+    body:`Hoi [Klant],\n\nEerder heb ik een reactie gevraagd, maar ik heb nog niets ontvangen. Kun je laten weten of dit inmiddels opgelost is, of dat er nog iets speelt?\n\nAls ik binnen 7 dagen niets hoor, sluit ik de melding. Je kunt daarna altijd een nieuwe melding aanmaken.\n\n${SIGN}` },
+  { id:"t18", emoji:"⏱️", label:"Nog geen update — geduld gevraagd",  category:"opvolging",     tags:["geen update","geduld"],
+    body:`Hoi [Klant],\n\nWe zijn er mee bezig, maar ik heb nog geen nieuwe update. Zodra ik meer weet, laat ik het je weten. Bedankt voor je geduld!\n\n${SIGN}` },
+  { id:"t19", emoji:"🛡️", label:"Beheerrol ingeperkt — workaround",  category:"beheer",        tags:["beheerrol","privacy","rollen"],
+    body:`Hoi [Klant],\n\nDe beheerdersrol is tijdelijk ingeperkt vanwege privacy-risico's. Er zit een blokkade op alle wijzigingsmogelijkheden in de beheermodule.\n\nAls tijdelijke oplossing kun je de gewenste aanpassingen bij ons aanvragen via een TOPdesk melding. Wat we nodig hebben:\n\n• Gebruikersnaam\n• Eén van de rollen van de gebruiker\n• Welke wijzigingen in welke velden op welk tabblad\n• Nieuwe groep toevoegen? Geef letterlijk de naam van de groep\n• Groep verwijderen? Geef aan welke keuze we mogen maken in de pop-up\n\nBundel meerdere verzoeken gerust in één melding.\n\n*Rollen en nieuwe accounts worden beheerd via Azure/EntraID door de gemeente of diens IT-organisatie.\n\n${SIGN}` },
+  { id:"t20", emoji:"📄", label:"RCA aanvragen bij oplosgroep",        category:"escalatie",     tags:["RCA","P1","P2"],
+    body:`Hoi [collega],\n\nMelding [SAM nummer] is opgelost en gesloten. Kunnen jullie een Root Cause Analysis (RCA) opstellen?\n\nDeadline: binnen 5 werkdagen. Graag als PDF, bij voorkeur in de TOPdesk melding.\n\n${SIGN}` },
+  { id:"t21", emoji:"📅", label:"Op. overleg — afspraak inplannen",        category:"operationeel overleg",       tags:["overleg","inplannen","operationeel"],
+    body:`Hoi [Klant],\n\nGraag zou ik een operationeel overleg met je willen plannen om de lopende meldingen samen door te nemen.\n\nWanneer komt dit jou het beste uit? Ik pas mijn agenda hier graag op aan.\n\nIk hoor graag binnen 5 werkdagen van je.\n\n${SIGN}` },
+  { id:"t22", emoji:"📨", label:"Op. overleg — uitnodiging",               category:"operationeel overleg",       tags:["overleg","uitnodiging","agenda"],
+    body:`Hoi [Klant],\n\nOver 2 weken hebben wij een operationeel overleg gepland staan om de meldingen te bespreken.\n\nMochten jullie nog meldingen of andere punten willen bespreken, dan zou het fijn zijn als we deze rond 3 werkdagen voor ons overleg ontvangen, zodat we alles goed kunnen voorbereiden.\n\nHoor het graag!\n\n${SIGN}` },
+  { id:"t23", emoji:"📝", label:"Op. overleg — input opvragen",            category:"operationeel overleg",       tags:["overleg","input","meldingen","voorbereiding"],
+    body:`Hoi [Klant],\n\nVolgende week staat ons operationeel overleg gepland. Zijn er meldingen of andere punten die je graag wilt bespreken? Het zou fijn zijn als je deze uiterlijk 3 werkdagen van tevoren kunt doorgeven, zodat we alles goed kunnen voorbereiden.\n\nIn het vervolg willen we je vragen zelf meldingnummers aan te leveren om te bespreken.\n\n${SIGN}` },
+  { id:"t24", emoji:"👻", label:"Op. overleg — no-show",                   category:"operationeel overleg",       tags:["overleg","no-show","verzetten"],
+    body:`Hoi [Klant],\n\nVandaag stond ons operationeel overleg gepland. We hebben je gemist — geen zorgen, het kan altijd voorkomen.\n\nWanneer komt het jou uit om dit overleg te verzetten? Ik pas mijn agenda hier graag op aan.\n\nIk hoor graag van je.\n\n${SIGN}` },
+  { id:"t25", emoji:"⏸️", label:"Op. overleg — pauzeren / frequentie",    category:"operationeel overleg",       tags:["overleg","pauzeren","frequentie"],
+    body:`Hoi [Klant],\n\nDe afgelopen overleggen hebben we gemerkt dat er relatief weinig punten te bespreken zijn. Dat is op zich positief!\n\nWat denk je ervan om het overleg tijdelijk te pauzeren of minder frequent in te plannen? We kunnen altijd weer opschalen als dat nodig is.\n\nLaat me weten wat je voorkeur heeft.\n\n${SIGN}` },
+];
+
+const VARS_DEF = { "[Klant]":"", "[SAM nummer]":"", "[versie nummer]":"", "[melding]":"", "[collega]":"" };
+
+// ── STYLE RULES injected into every AI prompt ─────────────────────────────────
+const STYLE_NL = `
+VASTE STIJLREGELS — nooit afwijken:
+1. Begin altijd met "Hoi," of "Hoi [naam]," — nooit "Beste", "Geachte" of iets anders.
+2. Gebruik altijd de informele je/jij-vorm — nooit u of uw.
+3. Schrijf vriendelijk maar zonder onnodige opsmuk of overdreven beleefdheidszinnen.
+4. Eindig altijd met exact:
+Met vriendelijk groet,
+Nils van Griethuijsen
+5. Gebruik duidelijke alinea's met een lege regel ertussen.
+Geef alleen de berichttekst terug, geen uitleg of preamble.`;
+
+const STYLE_EN = `
+STRICT STYLE RULES — never deviate:
+1. Always start with "Hi," or "Hi [name]," — never "Dear" or anything formal.
+2. Always use informal language (you/your).
+3. Friendly but no unnecessary fluff or filler phrases.
+4. Always end with exactly:
+Kind regards,
+Nils van Griethuijsen
+5. Separate paragraphs with a blank line.
+Return only the message text, no explanation or preamble.`;
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function Chip({ label, active, onClick, color, bg, border }) {
+  return (
+    <button onClick={onClick} style={{
+      padding:"5px 11px", borderRadius:20, fontSize:12, fontWeight:500,
+      cursor:"pointer", border:`1.5px solid ${active?color:border}`,
+      background:active?color:bg, color:active?"#fff":color,
+      transition:"all 0.12s", whiteSpace:"nowrap",
+    }}>{label}</button>
+  );
+}
+
+function Toast({ msg, onDone }) {
+  useEffect(()=>{ const t=setTimeout(onDone,2000); return()=>clearTimeout(t); },[]);
+  return <div style={{ position:"fixed",bottom:24,right:24,zIndex:9999,background:TH.navy,color:"#fff",padding:"10px 18px",borderRadius:10,fontSize:13,fontWeight:500,boxShadow:"0 8px 30px rgba(0,0,0,.2)",animation:"toastIn .2s ease" }}>✓ {msg}</div>;
+}
+
+// ── Image paste / upload field ────────────────────────────────────────────────
+function ImagePasteArea({ images, onAdd, onRemove, label }) {
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef = React.useRef();
+
+  const processFile = async (file) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    const r = new FileReader();
+    r.onload = (e) => {
+      const b64 = e.target.result.split(",")[1];
+      onAdd({ b64, mime: file.type, name: file.name || "afbeelding" });
+    };
+    r.readAsDataURL(file);
+  };
+
+  const handlePaste = async (e) => {
+    const items = [...(e.clipboardData?.items || [])];
+    const imgItem = items.find(i => i.type.startsWith("image/"));
+    if (imgItem) { e.preventDefault(); await processFile(imgItem.getAsFile()); }
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault(); setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    await processFile(file);
+  };
+
+  const handleFileInput = async (e) => {
+    for (const file of e.target.files) await processFile(file);
+    e.target.value = "";
+  };
+
+  return (
+    <div style={{ marginTop:6 }}>
+      {/* Drop / paste zone */}
+      <div
+        onPaste={handlePaste}
+        onDrop={handleDrop}
+        onDragOver={e=>{e.preventDefault();setDragOver(true);}}
+        onDragLeave={()=>setDragOver(false)}
+        tabIndex={0}
+        style={{
+          border:`1.5px dashed ${dragOver?TH.accent:TH.amberBorder}`,
+          borderRadius:8, padding:"8px 12px",
+          background: dragOver ? TH.accentBg : "#FFFEF5",
+          display:"flex", alignItems:"center", gap:8,
+          cursor:"pointer", transition:"all 0.15s", outline:"none",
+          flexWrap:"wrap",
+        }}
+        onClick={()=>fileRef.current.click()}
+      >
+        <span style={{ fontSize:18 }}>🖼️</span>
+        <span style={{ fontSize:12, color:TH.amber, flex:1 }}>
+          {dragOver ? "Loslaten om te uploaden…" : `Klik, sleep of plak (Ctrl+V) een afbeelding voor ${label}`}
+        </span>
+        <input ref={fileRef} type="file" accept="image/*" multiple style={{ display:"none" }} onChange={handleFileInput}/>
+      </div>
+
+      {/* Thumbnails */}
+      {images.length > 0 && (
+        <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:6 }}>
+          {images.map((img, i) => (
+            <div key={i} style={{ position:"relative", display:"inline-flex" }}>
+              <img
+                src={`data:${img.mime};base64,${img.b64}`}
+                alt={img.name}
+                style={{ height:52, width:52, objectFit:"cover", borderRadius:6, border:`1px solid ${TH.amberBorder}` }}
+              />
+              <button
+                onClick={e=>{e.stopPropagation();onRemove(i);}}
+                style={{
+                  position:"absolute", top:-5, right:-5, width:16, height:16,
+                  borderRadius:"50%", background:TH.red, color:"#fff",
+                  border:"none", cursor:"pointer", fontSize:9, fontWeight:700,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  lineHeight:1, padding:0,
+                }}
+              >✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Para role detection ───────────────────────────────────────────────────────
+function paraRole(text) {
+  const t = text.trim().toLowerCase();
+  if (t.startsWith("hoi") || t.startsWith("hi ") || t === "hi,") return "greeting";
+  if (t.startsWith("met vriendelijk") || t.startsWith("kind regards")) return "signoff";
+  return "body";
+}
+
+// ── Insert-between button ─────────────────────────────────────────────────────
+function InsertBetween({ onInsert }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <div
+      style={{ display:"flex", alignItems:"center", gap:8, padding:"2px 0", cursor:"pointer", opacity: hov?1:0, transition:"opacity 0.15s" }}
+      onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
+      onClick={onInsert}
+    >
+      <div style={{ flex:1, height:1, background:TH.accent, opacity:0.4 }}/>
+      <div style={{ fontSize:11, fontWeight:600, color:TH.accent, background:TH.accentBg, border:`1px solid ${TH.accent}`, borderRadius:99, padding:"2px 10px", whiteSpace:"nowrap" }}>＋ Alinea tussenvoegen</div>
+      <div style={{ flex:1, height:1, background:TH.accent, opacity:0.4 }}/>
+    </div>
+  );
+}
+
+// ── Main paragraph editor ─────────────────────────────────────────────────────
+function ParagraphOutput({ paragraphs, alts, onRefresh, onDelete, onInsert, onChange, onMove, loading }) {
+  const [refreshing, setRefreshing] = useState(null);
+  const [dragging, setDragging] = useState(null);
+  const [dragOver, setDragOver] = useState(null);
+
+  const doRefresh = async (idx) => {
+    setRefreshing(idx);
+    await onRefresh(idx, paraRole(paragraphs[idx]));
+    setRefreshing(null);
+  };
+
+  const handleDragStart = (e, idx) => { setDragging(idx); e.dataTransfer.effectAllowed="move"; };
+  const handleDragOver  = (e, idx) => { e.preventDefault(); e.dataTransfer.dropEffect="move"; if(idx!==dragging) setDragOver(idx); };
+  const handleDrop      = (e, idx) => { e.preventDefault(); if(dragging!==null&&dragging!==idx) onMove(dragging,idx); setDragging(null); setDragOver(null); };
+  const handleDragEnd   = () => { setDragging(null); setDragOver(null); };
+
+  const last = paragraphs.length - 1;
+
+  return (
+    <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:0, paddingRight:2 }}>
+      <InsertBetween onInsert={()=>onInsert(0)}/>
+
+      {paragraphs.map((para, idx) => {
+        const role        = paraRole(para);
+        const isGreeting  = role==="greeting";
+        const isSignoff   = role==="signoff";
+        const isFirst     = idx===0;
+        const isLast      = idx===last;
+        const showAlts    = !isFirst && !isLast; // only middle paragraphs
+        const paraAlts    = showAlts ? (alts[idx] || []) : [];
+        const accent      = isGreeting?TH.green:isSignoff?TH.purple:TH.accent;
+        const accentBg    = isGreeting?TH.greenBg:isSignoff?TH.purpleBg:"#fff";
+        const accentBorder= isGreeting?TH.greenBorder:isSignoff?TH.purpleBorder:TH.border;
+        const isDragTarget= dragOver===idx;
+
+        return (
+          <div key={idx}>
+            <div
+              draggable
+              onDragStart={e=>handleDragStart(e,idx)}
+              onDragOver={e=>handleDragOver(e,idx)}
+              onDrop={e=>handleDrop(e,idx)}
+              onDragEnd={handleDragEnd}
+              style={{
+                display:"flex", gap:8, alignItems:"flex-start",
+                opacity: dragging===idx?0.4:1,
+                background: isDragTarget?TH.accentBg:"transparent",
+                borderRadius:10, transition:"background 0.1s", marginBottom:2,
+              }}
+            >
+              {/* Drag handle */}
+              <div title="Sleep om te herordenen" style={{ cursor:"grab", color:TH.muted, fontSize:16, paddingTop:14, flexShrink:0, userSelect:"none", lineHeight:1 }}>⠿</div>
+
+              {/* Role stripe */}
+              <div style={{ width:3, borderRadius:99, background:accent, flexShrink:0, alignSelf:"stretch", minHeight:40, marginTop:2, opacity:isGreeting||isSignoff?1:0.2 }}/>
+
+              {/* Textarea + alts */}
+              <div style={{ flex:1, display:"flex", flexDirection:"column", gap:6 }}>
+                <div style={{ position:"relative" }}>
+                  {(isGreeting||isSignoff)&&(
+                    <div style={{ position:"absolute", top:7, right:10, fontSize:10, fontWeight:600, color:accent, background:accentBg, border:`1px solid ${accentBorder}`, borderRadius:99, padding:"1px 7px", pointerEvents:"none", zIndex:1 }}>
+                      {isGreeting?"aanhef":"afsluiting"}
+                    </div>
+                  )}
+                  <textarea
+                    value={para}
+                    onChange={e=>onChange(idx,e.target.value)}
+                    style={{
+                      width:"100%", fontSize:14, lineHeight:1.85, resize:"vertical",
+                      background:isGreeting?TH.greenBg:isSignoff?TH.purpleBg:"#fff",
+                      border:`1px solid ${isDragTarget?TH.accent:isGreeting||isSignoff?accentBorder:TH.border}`,
+                      borderRadius:9, padding:"10px 14px",
+                      color:TH.text, fontFamily:"Inter,sans-serif", outline:"none",
+                      minHeight:para.length>200?108:para.length>80?68:48,
+                      transition:"all 0.12s",
+                    }}
+                  />
+                </div>
+
+                {/* Inline alternative chips — only for middle paragraphs */}
+                {showAlts && paraAlts.length>0 && (
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:5, paddingLeft:2 }}>
+                    <span style={{ fontSize:11, color:TH.muted, alignSelf:"center", marginRight:2 }}>Alternatieven:</span>
+                    {paraAlts.map((alt, ai) => (
+                      <button
+                        key={ai}
+                        onClick={()=>onChange(idx, alt)}
+                        title={alt}
+                        style={{
+                          fontSize:11, fontWeight:500, cursor:"pointer",
+                          background:TH.accentBg, color:TH.accent,
+                          border:`1px solid #93C5FD`, borderRadius:99,
+                          padding:"3px 11px", fontFamily:"Inter,sans-serif",
+                          maxWidth:220, overflow:"hidden", textOverflow:"ellipsis",
+                          whiteSpace:"nowrap", transition:"all 0.1s",
+                        }}
+                        onMouseEnter={e=>{e.currentTarget.style.background=TH.accent;e.currentTarget.style.color="#fff";}}
+                        onMouseLeave={e=>{e.currentTarget.style.background=TH.accentBg;e.currentTarget.style.color=TH.accent;}}
+                      >
+                        {ai+1}. {alt.length>40 ? alt.slice(0,40)+"…" : alt}
+                      </button>
+                    ))}
+                    {paraAlts.length===0&&loading&&(
+                      <span style={{ fontSize:11, color:TH.muted, fontStyle:"italic" }}>laden…</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Action buttons */}
+              <div style={{ display:"flex", flexDirection:"column", gap:4, flexShrink:0, marginTop:2 }}>
+                <button onClick={()=>doRefresh(idx)} disabled={refreshing===idx||loading} title="Hergenereer alinea"
+                  style={{ width:32,height:32,borderRadius:7,border:`1px solid ${TH.border}`,background:"#fff",cursor:refreshing===idx?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,opacity:refreshing===idx?0.4:1,transition:"all 0.12s" }}>
+                  {refreshing===idx?"⏳":"🔄"}
+                </button>
+                <button onClick={()=>onDelete(idx)} title="Verwijder alinea"
+                  style={{ width:32,height:32,borderRadius:7,border:`1px solid ${TH.redBorder}`,background:TH.redBg,color:TH.red,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,transition:"all 0.12s" }}>
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <InsertBetween onInsert={()=>onInsert(idx+1)}/>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── MAIN ──────────────────────────────────────────────────────────────────────
+export default function App() {
+  const [tab, setTab] = useState("builder");
+  const [dark, setDark] = useState(false);
+  const T = dark
+    ? { bg:"#0F172A",surface:"#1E293B",border:"#334155",text:"#F1F5F9",sub:"#94A3B8",muted:"#475569" }
+    : { bg:TH.bg,surface:TH.surface,border:TH.border,text:TH.text,sub:TH.sub,muted:TH.muted };
+
+  const [templates, setTemplates] = useState(TMPL);
+  const [catFilter, setCatFilter] = useState("alle");
+  const [search, setSearch] = useState("");
+  const [favs, setFavs] = useState(new Set());
+  const [usage, setUsage] = useState({});
+  const [selected, setSelected] = useState(null);
+  const [vars, setVars] = useState(VARS_DEF);
+  const [toast, setToast] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [paragraphs, setParagraphs] = useState([]);
+  const [alts, setAlts] = useState({}); // { [idx]: [alt1, alt2, ...] }
+  const [context, setContext] = useState(""); // background context, not in mail
+  const [contextImages, setContextImages] = useState([]); // base64 images for context
+  const [bExtra, setBExtra] = useState("");
+  const [extraImages, setExtraImages] = useState([]); // base64 images for extra content
+  const [chips, setChips] = useState({});
+  const [nEmoji,setNEmoji]=useState("📝");
+  const [nLabel,setNLabel]=useState("");
+  const [nCat,setNCat]=useState("opvolging");
+  const [nTags,setNTags]=useState("");
+  const [nBody,setNBody]=useState("");
+
+  // PCR tab state
+  const [pcrInput, setPcrInput] = useState("");
+  const [pcrImages, setPcrImages] = useState([]);
+  const [pcrStory, setPcrStory] = useState("");
+  const [pcrTask, setPcrTask] = useState("");
+  const [pcrLoading, setPcrLoading] = useState(false);
+
+  // Samenvatting state
+  const [samInput, setSamInput] = useState("");
+  const [samImages, setSamImages] = useState([]);
+  const [samResult, setSamResult] = useState(null); // { samenvatting, advies, volledigheid, score, vervolgvragen }
+  const [samLoading, setSamLoading] = useState(false);
+
+  const isDevOps = () => [...(chips["doorzetten"]||new Set())].some(id=>DEVOPS_IDS.has(id));
+  const useEN = isDevOps();
+
+  const applyVars = (text) => {
+    let r=text; Object.entries(vars).forEach(([k,v])=>{ if(v.trim()) r=r.replaceAll(k,v.trim()); }); return r;
+  };
+
+  const flatOutput = paragraphs.join("\n\n");
+  const unresolved = flatOutput ? [...new Set((flatOutput.match(/\[Klant\]|\[SAM nummer\]|\[versie nummer\]|\[melding\]|\[collega\]/g))||[])] : [];
+
+  const loadTemplate = (tpl) => {
+    const text=applyVars(tpl.body);
+    setSelected(tpl);
+    setParagraphs(text.split("\n\n").filter(p=>p.trim()));
+    setUsage(u=>({...u,[tpl.id]:(u[tpl.id]||0)+1}));
+  };
+
+  const handleVarChange = (key,val) => {
+    const nv={...vars,[key]:val}; setVars(nv);
+    if(selected){ let r=selected.body; Object.entries(nv).forEach(([k,v])=>{ if(v.trim()) r=r.replaceAll(k,v.trim()); }); setParagraphs(r.split("\n\n").filter(p=>p.trim())); }
+  };
+
+  const toggleChip = (gk,id,multi) => {
+    setChips(prev=>{
+      const cur=new Set(prev[gk]||[]);
+      if(multi){ cur.has(id)?cur.delete(id):cur.add(id); }
+      else { cur.has(id)?cur.delete(id):(cur.clear(),cur.add(id)); }
+      return {...prev,[gk]:cur};
+    });
+  };
+
+  const selectedChips = CHIP_GROUPS.flatMap(g=>g.chips.filter(c=>(chips[g.key]||new Set()).has(c.id)));
+
+  const buildPrompt = (override="", overrideRole="body") => {
+    const parts = selectedChips.map(c=>c.prompt);
+    const ctxBlock = context.trim() ? `\nAchtergrondcontext (NIET overnemen in de mail, alleen gebruiken als begrip van de situatie):\n${context.trim()}\n` : "";
+    if(override) {
+      if(overrideRole==="greeting") return useEN
+        ? `Rewrite this greeting line slightly differently (Hi / Hi [name] only, no extra sentences):\n"${override}"\nReturn only the rewritten greeting.`
+        : `Herschrijf deze aanhef iets anders (alleen Hoi / Hoi [naam], geen extra zinnen):\n"${override}"\nGeef alleen de herschreven aanhef terug.`;
+      if(overrideRole==="signoff") return useEN
+        ? `Rewrite this sign-off slightly differently if possible (sign-off only):\n"${override}"\nReturn only the sign-off.`
+        : `Herschrijf deze afsluiting iets anders indien mogelijk (alleen afsluiting):\n"${override}"\nGeef alleen de afsluiting terug.`;
+      return useEN
+        ? `Rewrite only this paragraph with different wording, same meaning. Informal (you/your), friendly, no fluff:\n"${override}"\nReturn only the rewritten paragraph.`
+        : `Herschrijf alleen deze alinea anders, zelfde betekenis. Informele je-vorm, vriendelijk, geen opsmuk:\n"${override}"\nGeef alleen de herschreven alinea terug.`;
+    }
+    const intro = useEN
+      ? `You are Nils van Griethuijsen, service desk employee at Pink Roccade supporting municipalities with iSamenleving. Write a ticket response in English about: ${parts.length?parts.join(", "):"a support request"}.`
+      : `Je bent Nils van Griethuijsen, servicedesk medewerker bij Pink Roccade dat gemeenten ondersteunt met iSamenleving. Schrijf een ticketreactie over: ${parts.length?parts.join(", "):"een supportmelding"}.`;
+    return `${intro}${ctxBlock}${bExtra.trim()?`\nExtra instructie: ${bExtra.trim()}.`:""}${useEN?STYLE_EN:STYLE_NL}`;
+  };
+
+  // Build prompt for generating N alternatives for one paragraph
+  const buildAltPrompt = (para, role) => {
+    const ctxBlock = context.trim() ? `\nContext (not in mail): ${context.trim()}\n` : "";
+    if(role==="greeting") return useEN
+      ? `Write 4 alternative greeting lines for a service desk email (Hi / Hi [name] only). Return as numbered list 1-4, one per line, no extra text.`
+      : `Schrijf 4 alternatieve aanhefregels voor een servicedeskmail (alleen Hoi / Hoi [naam]). Geef als genummerde lijst 1-4, één per regel, geen extra tekst.`;
+    if(role==="signoff") return useEN
+      ? `Write 3 slightly different sign-off variations (Kind regards + Nils van Griethuijsen). Return as numbered list 1-3, one per line.`
+      : `Schrijf 3 licht andere variaties van de afsluiting (Met vriendelijk groet + Nils van Griethuijsen). Geef als genummerde lijst 1-3, één per regel.`;
+    return useEN
+      ? `Write 6 alternative versions of this paragraph, same meaning, different wording. Informal, friendly, no fluff.${ctxBlock}\nOriginal: "${para}"\nReturn as numbered list 1-6, each on its own line, no intro text.`
+      : `Schrijf 6 alternatieve versies van deze alinea, zelfde betekenis, andere formulering. Informele je-vorm, vriendelijk, geen opsmuk.${ctxBlock}\nOrigineel: "${para}"\nGeef als genummerde lijst 1-6, elke op een eigen regel, geen inleiding.`;
+  };
+
+  // Helper: convert file/blob to base64
+  const toBase64 = (file) => new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(",")[1]);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+
+  // Helper: extract base64 from paste event
+  const extractPastedImage = async (e) => {
+    const items = [...(e.clipboardData?.items || [])];
+    const imgItem = items.find(i => i.type.startsWith("image/"));
+    if (!imgItem) return null;
+    const blob = imgItem.getAsFile();
+    const b64 = await toBase64(blob);
+    return { b64, mime: imgItem.type };
+  };
+
+  // Helper: build vision-capable message content
+  const buildMessageContent = (promptText, images = []) => {
+    if (!images.length) return promptText;
+    const parts = images.map(img => ({
+      type: "image",
+      source: { type: "base64", media_type: img.mime, data: img.b64 },
+    }));
+    parts.push({ type: "text", text: promptText });
+    return parts;
+  };
+
+  const callAPI = async (prompt, images = []) => {
+    const content = buildMessageContent(prompt, images);
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1000,
+        messages: [{ role: "user", content }],
+      }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return (data.content || []).map(b => b.text || "").join("\n").trim();
+  };
+
+  // All images combined (context + extra)
+  const allImages = () => [...contextImages, ...extraImages];
+
+  // Parse numbered list response into array
+  const parseList = (text) => text.split("\n")
+    .map(l => l.replace(/^\d+[\.\)]\s*/, "").trim())
+    .filter(l => l.length > 0);
+
+  const generateAltsInBackground = (paras) => {
+    const last = paras.length - 1;
+    paras.forEach((para, idx) => {
+      if (idx === 0 || idx === last) return; // skip first and last
+      const role = paraRole(para);
+      callAPI(buildAltPrompt(para, role))
+        .then(raw => {
+          const list = parseList(raw).slice(0, 6);
+          setAlts(prev => ({ ...prev, [idx]: list }));
+        })
+        .catch(() => {});
+    });
+  };
+
+  const generate = async () => {
+    if(selectedChips.length===0&&!bExtra.trim()&&!context.trim()&&!allImages().length) return;
+    setLoading(true); setParagraphs([]); setAlts({}); setSelected(null);
+    try {
+      const text = await callAPI(buildPrompt(), allImages());
+      const paras = text.split("\n\n").filter(p=>p.trim());
+      setParagraphs(paras);
+      setToast(useEN?"Response generated!":"Reactie gegenereerd!");
+      generateAltsInBackground(paras);
+    } catch(e){ setParagraphs([`Fout: ${e.message}`]); }
+    setLoading(false);
+  };
+
+  const refreshParagraph = async (idx, role) => {
+    try {
+      const result = await callAPI(buildPrompt(paragraphs[idx], role));
+      const newPara = result.trim();
+      setParagraphs(prev => prev.map((p,i) => i===idx ? newPara : p));
+      // Regenerate alts for this paragraph in background — only if it's a middle paragraph
+      const last = paragraphs.length - 1;
+      if (idx > 0 && idx < last) {
+        setAlts(prev => ({ ...prev, [idx]: [] }));
+        callAPI(buildAltPrompt(newPara, role))
+          .then(raw => setAlts(prev => ({ ...prev, [idx]: parseList(raw).slice(0,6) })))
+          .catch(()=>{});
+      }
+    } catch {}
+  };
+
+  const deleteParagraph = (idx) => {
+    setParagraphs(prev => prev.filter((_,i) => i!==idx));
+    setAlts(prev => {
+      const next = {};
+      Object.entries(prev).forEach(([k,v]) => {
+        const ki = parseInt(k);
+        if(ki < idx) next[ki] = v;
+        else if(ki > idx) next[ki-1] = v;
+      });
+      return next;
+    });
+  };
+
+  const insertParagraph = (atIdx) => {
+    setParagraphs(prev => {
+      const next = [...prev];
+      next.splice(atIdx, 0, "");
+      return next;
+    });
+    setAlts(prev => {
+      const next = {};
+      Object.entries(prev).forEach(([k,v]) => {
+        const ki = parseInt(k);
+        if(ki < atIdx) next[ki] = v;
+        else next[ki+1] = v;
+      });
+      return next;
+    });
+  };
+
+  const moveParagraph = (from, to) => {
+    setParagraphs(prev => {
+      const next = [...prev];
+      const [item] = next.splice(from, 1);
+      next.splice(to, 0, item);
+      return next;
+    });
+    setAlts(prev => {
+      const keys = Object.keys(prev).map(Number).sort((a,b)=>a-b);
+      const arr = keys.map(k => prev[k]);
+      if(from < arr.length) {
+        const [item] = arr.splice(from, 1);
+        arr.splice(to, 0, item);
+      }
+      const next = {};
+      arr.forEach((v,i) => { if(v) next[i]=v; });
+      return next;
+    });
+  };
+
+  const copy = async () => {
+    if (!paragraphs.length) return;
+    const text = paragraphs.filter(p => p.trim()).join("\n\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      setToast("Gekopieerd naar klembord!");
+    } catch {
+      // Fallback for environments where clipboard API is blocked
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        setToast("Gekopieerd naar klembord!");
+      } catch { setToast("Kopiëren mislukt — selecteer de tekst handmatig"); }
+    }
+  };
+
+  const saveNew = () => {
+    if(!nLabel.trim()||!nBody.trim()) return;
+    setTemplates(prev=>[...prev,{id:"c_"+Date.now(),emoji:nEmoji||"📝",label:nLabel.trim(),category:nCat,tags:nTags.split(",").map(t=>t.trim()).filter(Boolean),body:nBody.trim()}]);
+    setToast("Template opgeslagen!"); setNLabel("");setNTags("");setNBody("");setNEmoji("📝");setNCat("opvolging");
+  };
+
+  const generatePCR = async () => {
+    if (!pcrInput.trim() && !pcrImages.length) return;
+    setPcrLoading(true); setPcrStory(""); setPcrTask("");
+    const prompt = `Je bent een technisch analyst bij Pink Roccade. Je maakt PCR's (Product Change Requests) aan voor het ontwikkelteam.
+
+OPDRACHT 1 — STORY OMSCHRIJVING:
+Neem de rol als technisch analyst en maak van onderstaande melding een bondige story die als omschrijvingstekst kan dienen voor een PCR-melding. Neem elke regel goed op en beoordeel of deze relevant is. De tekst moet ongeveer 5 tot 15 regels zijn.
+
+OPDRACHT 2 — TAAK:
+Maak vanuit deze story ook een taak van maximaal 2 zinnen. Kort en bondig.
+
+FORMAT — antwoord exact zo:
+---STORY---
+[story tekst hier]
+---TAAK---
+[taak tekst hier]
+
+MELDING:
+${pcrInput.trim()}`;
+
+    try {
+      const result = await callAPI(prompt, pcrImages);
+      const storyMatch = result.match(/---STORY---\s*([\s\S]*?)\s*---TAAK---/);
+      const taskMatch = result.match(/---TAAK---\s*([\s\S]*?)$/);
+      setPcrStory(storyMatch ? storyMatch[1].trim() : result);
+      setPcrTask(taskMatch ? taskMatch[1].trim() : "");
+      setToast("PCR gegenereerd!");
+    } catch(e) { setPcrStory(`Fout: ${e.message}`); }
+    setPcrLoading(false);
+  };
+
+  const copyPcr = async (text, label) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setToast(`${label} gekopieerd!`);
+    } catch {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text; ta.style.position="fixed"; ta.style.opacity="0";
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        document.execCommand("copy"); document.body.removeChild(ta);
+        setToast(`${label} gekopieerd!`);
+      } catch { setToast("Kopiëren mislukt"); }
+    }
+  };
+
+  const generateSamenvatting = async () => {
+    if (!samInput.trim() && !samImages.length) return;
+    setSamLoading(true); setSamResult(null);
+    const prompt = `Je bent een ervaren servicedesk medewerker bij Pink Roccade die gemeenten ondersteunt met iSamenleving.
+Analyseer onderstaande melding/situatie en geef een gestructureerde analyse. Antwoord ALLEEN in dit exacte JSON-formaat, geen extra tekst:
+
+{
+  "samenvatting": "Korte bondige samenvatting van de melding in 2-4 zinnen.",
+  "advies": "Concreet advies: wat is de beste vervolgstap? Wees direct en specifiek.",
+  "volledigheid_score": 75,
+  "volledigheid_toelichting": "Wat ontbreekt er nog in de melding om het goed op te kunnen pakken?",
+  "ontbrekende_info": ["ontbrekend punt 1", "ontbrekend punt 2"],
+  "vervolgvragen": ["mogelijke vervolgvraag 1", "mogelijke vervolgvraag 2", "mogelijke vervolgvraag 3"],
+  "mogelijke_oplossingen": ["oplossingsrichting 1", "oplossingsrichting 2"]
+}
+
+Regels:
+- volledigheid_score is een getal van 0-100 (0=heel onvolledig, 100=alles aanwezig)
+- ontbrekende_info: max 4 punten, alleen als het echt ontbreekt
+- vervolgvragen: 2-5 concrete vragen die je aan de klant kunt stellen als inspiratie
+  * Formuleer deze ALTIJD in de je/jij-vorm, informeel en vriendelijk
+  * Voorbeeld: "Kan je me de foutmelding nog even opnieuw sturen?" (NIET: "Kunt u de foutmelding opnieuw sturen?")
+  * Begin NOOIT met: "Beste", "Geachte", of formele aansprekingen
+  * Wees direct en to-the-point, geen onnodige beleefdheid
+- mogelijke_oplossingen: 2-4 mogelijke oplossingsrichtingen of vervolgacties
+
+MELDING:
+${samInput.trim()}`;
+
+    try {
+      const raw = await callAPI(prompt, samImages);
+      const clean = raw.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
+      setSamResult(parsed);
+      setToast("Analyse gereed!");
+    } catch(e) {
+      setSamResult({ samenvatting: `Fout bij verwerken: ${e.message}`, advies:"", volledigheid_score:0, volledigheid_toelichting:"", ontbrekende_info:[], vervolgvragen:[], mogelijke_oplossingen:[] });
+    }
+    setSamLoading(false);
+  };
+
+  const filtered=templates
+    .filter(t=>catFilter==="alle"||t.category===catFilter)
+    .filter(t=>!search||t.label.toLowerCase().includes(search.toLowerCase())||t.tags.some(g=>g.toLowerCase().includes(search.toLowerCase())))
+    .sort((a,b)=>(usage[b.id]||0)-(usage[a.id]||0));
+
+  const inp={fontSize:13,padding:"8px 11px",borderRadius:8,border:`1px solid ${T.border}`,background:T.surface,color:T.text,width:"100%",fontFamily:"Inter,sans-serif",outline:"none"};
+  const btn=(ex={})=>({display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:13,fontWeight:600,padding:"9px 16px",borderRadius:8,cursor:"pointer",fontFamily:"Inter,sans-serif",transition:"all 0.15s",border:"none",...ex});
+  const canGenerate=selectedChips.length>0||bExtra.trim().length>0||context.trim().length>0||contextImages.length>0||extraImages.length>0;
+
+  const OutputPanel = ({ isBuilder }) => (
+    <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 50px)"}}>
+      {/* Context field */}
+      <div style={{background:"#FFFBEB",borderBottom:`1px solid ${TH.amberBorder}`,padding:"12px 16px",flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+          <span style={{fontSize:11,fontWeight:700,letterSpacing:"0.06em",color:TH.amber,textTransform:"uppercase"}}>📋 Achtergrondcontext</span>
+          <span style={{fontSize:11,color:TH.amber,opacity:0.7}}>— wordt niet meegenomen in de mail, alleen als begrip voor de AI</span>
+        </div>
+        <textarea
+          value={context}
+          onChange={e=>setContext(e.target.value)}
+          placeholder="Beschrijf hier de situatie, melding of achtergrond. Bv: klant belt over een inlogprobleem na wachtwoordreset. Gebruiker gemeente Amsterdam, omgeving PRD. Eerder is al contact geweest over hetzelfde probleem."
+          style={{width:"100%",fontSize:13,lineHeight:1.6,resize:"none",background:"#fff",border:`1px solid ${TH.amberBorder}`,borderRadius:8,padding:"10px 12px",color:TH.text,fontFamily:"Inter,sans-serif",outline:"none",height:180,overflowY:"auto"}}
+        />
+        <ImagePasteArea
+          images={contextImages}
+          onAdd={img=>setContextImages(prev=>[...prev,img])}
+          onRemove={i=>setContextImages(prev=>prev.filter((_,j)=>j!==i))}
+          label="achtergrondcontext"
+        />
+      </div>
+
+      {/* Toolbar */}
+      <div style={{background:T.surface,borderBottom:`1px solid ${T.border}`,padding:"8px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          {!isBuilder&&selected&&<span style={{fontSize:12,fontWeight:600,color:gc(selected.category).color,background:gc(selected.category).bg,border:`1px solid ${gc(selected.category).border}`,borderRadius:99,padding:"3px 10px"}}>{selected.emoji} {selected.label}</span>}
+          {!isBuilder&&!selected&&<span style={{fontSize:13,color:T.muted}}>Kies een template links</span>}
+          {isBuilder&&<span style={{fontSize:13,fontWeight:600,color:T.sub}}>{useEN?"🇬🇧 Reactie (Engels)":"Reactie"}</span>}
+          {unresolved.length>0&&<span style={{fontSize:11,background:TH.amberBg,color:TH.amber,border:`1px solid ${TH.amberBorder}`,borderRadius:99,padding:"2px 9px"}}>⚠ {unresolved.join(", ")}</span>}
+        </div>
+        {paragraphs.length>0&&<span style={{fontSize:12,color:T.muted}}>{paragraphs.length} alinea{paragraphs.length!==1?"'s":""} · {flatOutput.trim().split(/\s+/).length} woorden</span>}
+      </div>
+
+      <div style={{flex:1,padding:"12px 16px",overflow:"hidden",display:"flex",flexDirection:"column"}}>
+        {paragraphs.length===0?
+          <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8,color:T.muted}}>
+            <div style={{fontSize:40}}>{isBuilder?"👈":"✉️"}</div>
+            <div style={{fontSize:15,fontWeight:600,color:T.sub}}>{isBuilder?"Selecteer chips links":"Kies een template"}</div>
+            <div style={{fontSize:13,textAlign:"center",maxWidth:280}}>{isBuilder?"Vul de achtergrondcontext in en klik Genereer — elke alinea krijgt automatisch alternatieven.":"Of gebruik de AI Builder voor een reactie op maat."}</div>
+            {!isBuilder&&<button onClick={()=>setTab("builder")} style={{...btn({background:TH.accentBg,color:TH.accent,border:`1px solid ${TH.accent}`,marginTop:4})}}>✨ Naar AI Builder →</button>}
+          </div>
+        :
+          <ParagraphOutput
+            paragraphs={paragraphs}
+            alts={alts}
+            onRefresh={refreshParagraph}
+            onDelete={deleteParagraph}
+            onInsert={insertParagraph}
+            onMove={moveParagraph}
+            onChange={(i,v)=>setParagraphs(p=>p.map((x,j)=>j===i?v:x))}
+            loading={loading}
+          />
+        }
+      </div>
+      <div style={{background:T.surface,borderTop:`1px solid ${T.border}`,padding:"12px 16px",display:"flex",gap:8}}>
+        <button onClick={copy} disabled={!paragraphs.filter(p=>p.trim()).length} style={{...btn({flex:1,background:paragraphs.filter(p=>p.trim()).length?TH.accent:"#CBD5E0",color:"#fff",fontSize:14,padding:"10px",cursor:paragraphs.filter(p=>p.trim()).length?"pointer":"not-allowed"})}}>⎘ Kopieer volledige tekst</button>
+        <button onClick={()=>{setParagraphs([]);setAlts({});setSelected(null);}} style={{...btn({background:T.surface,color:T.sub,border:`1px solid ${T.border}`,padding:"10px 14px"})}}>↺</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{fontFamily:"Inter,sans-serif",background:T.bg,minHeight:"100vh",color:T.text}}>
+      <style>{`
+        @keyframes toastIn{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}
+        *{box-sizing:border-box}
+        ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${T.border};border-radius:99px}
+        textarea,input,select{font-family:Inter,sans-serif!important}
+        .tpl:hover{background:${dark?"#263347":TH.accentBg}!important;cursor:pointer}
+        .nav-btn:hover{background:rgba(255,255,255,.12)!important}
+      `}</style>
+
+      {/* HEADER */}
+      <div style={{background:TH.navy,height:50,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:28,height:28,borderRadius:7,background:"rgba(255,255,255,.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>✉</div>
+          <div style={{fontSize:14,fontWeight:700,color:"#fff"}}>MailDesk <span style={{fontSize:11,fontWeight:400,opacity:.5}}>— Pink Roccade Servicedesk</span></div>
+        </div>
+        <div style={{display:"flex",gap:2}}>
+          {[["builder","✨ AI Builder"],["pcr","📋 PCR"],["samenvatting","🔍 Analyse"],["templates","⚡ Templates"],["nieuw","＋ Nieuw"]].map(([id,lbl])=>(
+            <button key={id} className="nav-btn" onClick={()=>setTab(id)} style={{...btn({background:tab===id?"rgba(255,255,255,.18)":"transparent",color:tab===id?"#fff":"rgba(255,255,255,.55)",fontWeight:tab===id?600:400,padding:"6px 14px",fontSize:13})}}>{lbl}</button>
+          ))}
+          <button className="nav-btn" onClick={()=>setDark(d=>!d)} style={{...btn({background:"transparent",color:"rgba(255,255,255,.55)",padding:"6px 10px"})}}>{dark?"☀️":"🌙"}</button>
+        </div>
+      </div>
+
+      {/* BUILDER */}
+      {tab==="builder"&&(
+        <div style={{display:"grid",gridTemplateColumns:"430px 1fr",height:"calc(100vh - 50px)"}}>
+          <div style={{background:T.surface,borderRight:`1px solid ${T.border}`,overflowY:"auto",padding:20}}>
+            <div style={{fontSize:17,fontWeight:700,marginBottom:2}}>✨ AI Builder</div>
+            <div style={{fontSize:13,color:T.sub,marginBottom:18}}>Klik wat van toepassing is — geen typen nodig.</div>
+            {CHIP_GROUPS.map(group=>(
+              <div key={group.key} style={{marginBottom:18}}>
+                <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.07em",color:T.muted,textTransform:"uppercase",marginBottom:9}}>
+                  {group.title}{!group.multi&&<span style={{fontWeight:400,opacity:.6}}> (kies één)</span>}
+                </div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                  {group.chips.map(c=>(
+                    <Chip key={c.id} label={c.label} active={(chips[group.key]||new Set()).has(c.id)}
+                      onClick={()=>toggleChip(group.key,c.id,group.multi)}
+                      color={group.color.color} bg={group.color.bg} border={group.color.border}/>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {useEN&&(
+              <div style={{background:"#FEF3C7",border:"1px solid #FCD34D",borderRadius:9,padding:"8px 12px",marginBottom:14,fontSize:12,color:TH.amber,display:"flex",alignItems:"center",gap:6}}>
+                🇬🇧 <strong>Engels</strong> — DevOps geselecteerd, reactie wordt in het Engels.
+              </div>
+            )}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.07em",color:T.muted,textTransform:"uppercase",marginBottom:8}}>Extra context <span style={{fontWeight:400,opacity:.6}}>(optioneel)</span></div>
+              <textarea value={bExtra} onChange={e=>setBExtra(e.target.value)} placeholder="Bv: meldingnummer SAM 123, gemeente Amsterdam..." style={{...inp,minHeight:68,resize:"vertical",lineHeight:1.6,padding:"9px 11px"}}/>
+              <ImagePasteArea
+                images={extraImages}
+                onAdd={img=>setExtraImages(prev=>[...prev,img])}
+                onRemove={i=>setExtraImages(prev=>prev.filter((_,j)=>j!==i))}
+                label="extra context"
+              />
+            </div>
+            {selectedChips.length>0&&(
+              <div style={{background:TH.accentBg,border:"1px solid #93C5FD",borderRadius:9,padding:"9px 13px",marginBottom:14,fontSize:12,color:TH.accent,lineHeight:1.8}}>
+                <strong>Geselecteerd:</strong> {selectedChips.map(c=>c.label).join("  ·  ")}
+              </div>
+            )}
+            <button onClick={generate} disabled={loading||!canGenerate} style={{...btn({width:"100%",background:canGenerate&&!loading?TH.accent:"#CBD5E0",color:"#fff",fontSize:14,padding:"12px",cursor:canGenerate&&!loading?"pointer":"not-allowed"})}}>
+              {loading?"⏳ Genereren...":"✨ Genereer reactie"}
+            </button>
+          </div>
+          <OutputPanel isBuilder={true}/>
+        </div>
+      )}
+
+      {/* PCR AANMAKEN */}
+      {tab==="pcr"&&(
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",height:"calc(100vh - 50px)"}}>
+          {/* Left: input */}
+          <div style={{background:T.surface,borderRight:`1px solid ${T.border}`,overflowY:"auto",padding:24,display:"flex",flexDirection:"column",gap:16}}>
+            <div>
+              <div style={{fontSize:17,fontWeight:700,marginBottom:2}}>📋 PCR Aanmaken</div>
+              <div style={{fontSize:13,color:T.sub,marginBottom:4}}>Plak de meldingstekst — de AI maakt een bondige story en taak.</div>
+            </div>
+            <div style={{flex:1,display:"flex",flexDirection:"column"}}>
+              <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.07em",color:T.muted,textTransform:"uppercase",marginBottom:8}}>Melding / omschrijving</div>
+              <textarea value={pcrInput} onChange={e=>setPcrInput(e.target.value)}
+                placeholder="Plak hier de tekst uit de melding, klantverzoek, of beschrijf de gewenste aanpassing..."
+                style={{...inp,flex:1,minHeight:300,resize:"none",lineHeight:1.7,padding:"12px 14px"}}/>
+              <ImagePasteArea images={pcrImages} onAdd={img=>setPcrImages(prev=>[...prev,img])} onRemove={i=>setPcrImages(prev=>prev.filter((_,j)=>j!==i))} label="PCR melding"/>
+            </div>
+            <button onClick={generatePCR} disabled={pcrLoading||(!pcrInput.trim()&&!pcrImages.length)}
+              style={{...btn({width:"100%",background:pcrInput.trim()||pcrImages.length?TH.accent:"#CBD5E0",color:"#fff",fontSize:14,padding:"12px",cursor:(pcrInput.trim()||pcrImages.length)&&!pcrLoading?"pointer":"not-allowed"})}}>
+              {pcrLoading?"⏳ PCR genereren...":"📋 Genereer PCR"}
+            </button>
+          </div>
+
+          {/* Right: output */}
+          <div style={{overflowY:"auto",padding:24,display:"flex",flexDirection:"column",gap:16}}>
+            {!pcrStory&&!pcrLoading&&(
+              <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8,color:T.muted,minHeight:300}}>
+                <div style={{fontSize:40}}>📋</div>
+                <div style={{fontSize:15,fontWeight:600,color:T.sub}}>Plak de melding links</div>
+                <div style={{fontSize:13,textAlign:"center",maxWidth:280}}>De AI maakt een bondige story-omschrijving (5–15 regels) en een korte taak (max 2 zinnen).</div>
+              </div>
+            )}
+            {(pcrStory||pcrLoading)&&(<>
+              <div>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:11,fontWeight:700,letterSpacing:"0.07em",color:"#6D28D9",textTransform:"uppercase"}}>📖 Story omschrijving</span>
+                    <span style={{fontSize:11,color:T.muted}}>5–15 regels</span>
+                  </div>
+                  {pcrStory&&<button onClick={()=>copyPcr(pcrStory,"Story")} style={{...btn({background:"#F5F3FF",color:"#6D28D9",border:"1px solid #DDD6FE",padding:"5px 12px",fontSize:12})}}>⎘ Kopieer</button>}
+                </div>
+                <textarea value={pcrStory} onChange={e=>setPcrStory(e.target.value)} placeholder={pcrLoading?"Story wordt gegenereerd...":""}
+                  style={{...inp,minHeight:250,resize:"vertical",lineHeight:1.7,padding:"12px 14px",background:"#FDFCFF",border:"1px solid #DDD6FE"}}/>
+              </div>
+              <div>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:11,fontWeight:700,letterSpacing:"0.07em",color:TH.teal,textTransform:"uppercase"}}>✅ Taak</span>
+                    <span style={{fontSize:11,color:T.muted}}>max 2 zinnen</span>
+                  </div>
+                  {pcrTask&&<button onClick={()=>copyPcr(pcrTask,"Taak")} style={{...btn({background:TH.tealBg,color:TH.teal,border:`1px solid ${TH.tealBorder}`,padding:"5px 12px",fontSize:12})}}>⎘ Kopieer</button>}
+                </div>
+                <textarea value={pcrTask} onChange={e=>setPcrTask(e.target.value)} placeholder={pcrLoading?"Taak wordt gegenereerd...":""}
+                  style={{...inp,minHeight:80,resize:"vertical",lineHeight:1.7,padding:"12px 14px",background:"#F0FDFA",border:`1px solid ${TH.tealBorder}`}}/>
+              </div>
+              <button onClick={()=>copyPcr(`STORY:\n${pcrStory}\n\nTAAK:\n${pcrTask}`,"Story + Taak")} disabled={!pcrStory}
+                style={{...btn({width:"100%",background:pcrStory?TH.accent:"#CBD5E0",color:"#fff",fontSize:14,padding:"12px"})}}>
+                ⎘ Kopieer alles
+              </button>
+            </>)}
+          </div>
+        </div>
+      )}
+
+      {/* SAMENVATTING & ANALYSE */}
+      {tab==="samenvatting"&&(
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",height:"calc(100vh - 50px)"}}>
+          {/* Left: input */}
+          <div style={{background:T.surface,borderRight:`1px solid ${T.border}`,overflowY:"auto",padding:24,display:"flex",flexDirection:"column",gap:16}}>
+            <div>
+              <div style={{fontSize:17,fontWeight:700,marginBottom:2}}>🔍 Analyse & Samenvatting</div>
+              <div style={{fontSize:13,color:T.sub}}>Plak een melding of situatie — de AI vat samen, geeft advies en checkt of de informatie volledig is.</div>
+            </div>
+            <div style={{flex:1,display:"flex",flexDirection:"column"}}>
+              <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.07em",color:T.muted,textTransform:"uppercase",marginBottom:8}}>Melding / situatie</div>
+              <textarea value={samInput} onChange={e=>setSamInput(e.target.value)}
+                placeholder="Plak hier de tekst van de melding, het klantgesprek, of de situatie die je wilt analyseren..."
+                style={{...inp,flex:1,minHeight:300,resize:"none",lineHeight:1.7,padding:"12px 14px"}}/>
+              <ImagePasteArea images={samImages} onAdd={img=>setSamImages(prev=>[...prev,img])} onRemove={i=>setSamImages(prev=>prev.filter((_,j)=>j!==i))} label="analyse"/>
+            </div>
+            <button onClick={generateSamenvatting} disabled={samLoading||(!samInput.trim()&&!samImages.length)}
+              style={{...btn({width:"100%",background:samInput.trim()||samImages.length?TH.accent:"#CBD5E0",color:"#fff",fontSize:14,padding:"12px",cursor:(samInput.trim()||samImages.length)&&!samLoading?"pointer":"not-allowed"})}}>
+              {samLoading?"⏳ Analyseren...":"🔍 Analyseer melding"}
+            </button>
+            <button onClick={()=>{setSamInput(""); setSamImages([]); setSamResult(null);}}
+              style={{...btn({width:"100%",background:T.surface,color:T.sub,border:`1px solid ${T.border}`,fontSize:14,padding:"12px"})}}>
+              ↺ Nieuw melding
+            </button>
+          </div>
+
+          {/* Right: results */}
+          <div style={{overflowY:"auto",padding:24,display:"flex",flexDirection:"column",gap:14}}>
+            {!samResult&&!samLoading&&(
+              <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8,color:T.muted,minHeight:300}}>
+                <div style={{fontSize:40}}>🔍</div>
+                <div style={{fontSize:15,fontWeight:600,color:T.sub}}>Plak een melding links</div>
+                <div style={{fontSize:13,textAlign:"center",maxWidth:300}}>
+                  De AI geeft je een samenvatting, concreet advies, volledigheidscheck en inspiratie voor vervolgvragen.
+                </div>
+              </div>
+            )}
+
+            {samLoading&&(
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {["Samenvatting","Advies","Volledigheid","Vervolgvragen"].map(l=>(
+                  <div key={l} style={{background:T.bg,borderRadius:10,padding:"14px 16px",border:`1px solid ${T.border}`}}>
+                    <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",marginBottom:6}}>{l}</div>
+                    <div style={{height:14,background:T.border,borderRadius:4,width:"80%",animation:"pulse 1.5s infinite"}}/>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {samResult&&!samLoading&&(<>
+              {/* Samenvatting */}
+              <div style={{background:TH.accentBg,border:`1px solid #93C5FD`,borderRadius:10,padding:"14px 16px"}}>
+                <div style={{fontSize:11,fontWeight:700,color:TH.accent,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>📄 Samenvatting</div>
+                <div style={{fontSize:13,lineHeight:1.75,color:T.text}}>{samResult.samenvatting}</div>
+              </div>
+
+              {/* Advies */}
+              <div style={{background:TH.greenBg,border:`1px solid ${TH.greenBorder}`,borderRadius:10,padding:"14px 16px"}}>
+                <div style={{fontSize:11,fontWeight:700,color:TH.green,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>💡 Advies</div>
+                <div style={{fontSize:13,lineHeight:1.75,color:T.text}}>{samResult.advies}</div>
+              </div>
+
+              {/* Volledigheid score */}
+              <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,padding:"14px 16px"}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                  <div style={{fontSize:11,fontWeight:700,color:T.sub,textTransform:"uppercase",letterSpacing:"0.06em"}}>📊 Volledigheid</div>
+                  <div style={{fontSize:16,fontWeight:700,color:
+                    samResult.volledigheid_score>=75?TH.green:
+                    samResult.volledigheid_score>=40?TH.amber:TH.red
+                  }}>{samResult.volledigheid_score}%</div>
+                </div>
+                {/* Progress bar */}
+                <div style={{height:8,background:T.bg,borderRadius:99,marginBottom:10,overflow:"hidden"}}>
+                  <div style={{height:"100%",borderRadius:99,transition:"width 0.4s ease",width:`${samResult.volledigheid_score}%`,
+                    background:samResult.volledigheid_score>=75?TH.green:samResult.volledigheid_score>=40?TH.amber:TH.red}}/>
+                </div>
+                <div style={{fontSize:13,color:T.sub,lineHeight:1.6,marginBottom: samResult.ontbrekende_info?.length?10:0}}>
+                  {samResult.volledigheid_toelichting}
+                </div>
+                {samResult.ontbrekende_info?.length>0&&(
+                  <div style={{display:"flex",flexDirection:"column",gap:4,marginTop:6}}>
+                    {samResult.ontbrekende_info.map((item,i)=>(
+                      <div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,fontSize:12,color:TH.amber}}>
+                        <span style={{flexShrink:0,marginTop:1}}>⚠</span>
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Mogelijke oplossingen */}
+              {samResult.mogelijke_oplossingen?.length>0&&(
+                <div style={{background:"#FFF7ED",border:`1px solid ${TH.amberBorder}`,borderRadius:10,padding:"14px 16px"}}>
+                  <div style={{fontSize:11,fontWeight:700,color:TH.amber,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>🛠️ Mogelijke oplossingen</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    {samResult.mogelijke_oplossingen.map((item,i)=>(
+                      <div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,fontSize:13,color:T.text,lineHeight:1.6}}>
+                        <span style={{flexShrink:0,fontWeight:700,color:TH.amber}}>{i+1}.</span>
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Vervolgvragen */}
+              {samResult.vervolgvragen?.length>0&&(
+                <div style={{background:TH.purpleBg,border:`1px solid ${TH.purpleBorder}`,borderRadius:10,padding:"14px 16px"}}>
+                  <div style={{fontSize:11,fontWeight:700,color:TH.purple,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>💬 Vervolgvragen als inspiratie</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    {samResult.vervolgvragen.map((q,i)=>(
+                      <div key={i} style={{display:"flex",alignItems:"flex-start",gap:8}}>
+                        <span style={{flexShrink:0,fontSize:13,color:TH.purple,fontWeight:600}}>?</span>
+                        <div style={{flex:1,fontSize:13,color:T.text,lineHeight:1.6}}>{q}</div>
+                        <button
+                          onClick={async ()=>{
+                            try {
+                              await navigator.clipboard.writeText(q);
+                              setToast("Vraag gekopieerd!");
+                            } catch {
+                              try {
+                                const ta = document.createElement("textarea");
+                                ta.value = q;
+                                ta.style.position = "fixed";
+                                ta.style.opacity = "0";
+                                document.body.appendChild(ta);
+                                ta.focus();
+                                ta.select();
+                                document.execCommand("copy");
+                                document.body.removeChild(ta);
+                                setToast("Vraag gekopieerd!");
+                              } catch { setToast("Kopiëren mislukt"); }
+                            }
+                          }}
+                          title="Kopieer vraag"
+                          style={{flexShrink:0,fontSize:11,padding:"4px 10px",borderRadius:99,border:`1px solid ${TH.purpleBorder}`,background:TH.purpleBg,color:TH.purple,cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,transition:"all 0.15s"}}
+                          onMouseEnter={e=>{e.currentTarget.style.background=TH.purple;e.currentTarget.style.color="#fff";}}
+                          onMouseLeave={e=>{e.currentTarget.style.background=TH.purpleBg;e.currentTarget.style.color=TH.purple;}}
+                        >
+                          ⎘
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>)}
+          </div>
+        </div>
+      )}
+
+      {/* TEMPLATES */}
+      {tab==="templates"&&(
+        <div style={{display:"grid",gridTemplateColumns:"300px 1fr",height:"calc(100vh - 50px)"}}>
+          <div style={{background:T.surface,borderRight:`1px solid ${T.border}`,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            <div style={{padding:"12px 14px 10px",borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔎 Zoek template of tag..." style={{...inp,marginBottom:10}}/>
+              <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                {["alle",...CATS].map(cat=>{const cfg=CAT[cat];const act=catFilter===cat;return <span key={cat} onClick={()=>setCatFilter(cat)} style={{padding:"3px 8px",borderRadius:99,fontSize:11,fontWeight:500,cursor:"pointer",background:act?(cfg?.color||TH.navy):(cfg?.bg||T.bg),color:act?"#fff":(cfg?.color||T.muted),border:`1px solid ${act?(cfg?.color||TH.navy):(cfg?.border||T.border)}`,transition:"all 0.1s"}}>{cfg?.icon||"•"} {cat}</span>;})}
+              </div>
+            </div>
+            <div style={{flex:1,overflowY:"auto",padding:8}}>
+              {filtered.map(tpl=>{const cfg=gc(tpl.category);const act=selected?.id===tpl.id;const u=usage[tpl.id]||0;return(
+                <div key={tpl.id} className="tpl" onClick={()=>loadTemplate(tpl)} style={{padding:"9px 12px 9px 14px",borderRadius:9,marginBottom:4,border:`1px solid ${act?cfg.border:T.border}`,background:act?cfg.bg:T.surface,borderLeft:`3px solid ${act?cfg.color:cfg.border}`,transition:"all 0.12s"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                    <div style={{fontSize:13,fontWeight:600,color:act?cfg.color:T.text,flex:1,lineHeight:1.3}}>{tpl.emoji} {tpl.label}</div>
+                    <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                      {u>0&&<span style={{fontSize:10,background:T.bg,color:T.muted,borderRadius:99,padding:"1px 5px",border:`1px solid ${T.border}`}}>{u}×</span>}
+                      <span onClick={e=>{e.stopPropagation();setFavs(p=>{const n=new Set(p);n.has(tpl.id)?n.delete(tpl.id):n.add(tpl.id);return n;})}} style={{fontSize:13,cursor:"pointer",opacity:favs.has(tpl.id)?1:0.2}}>⭐</span>
+                      {tpl.id.startsWith("c_")&&<span onClick={e=>{e.stopPropagation();setTemplates(p=>p.filter(t=>t.id!==tpl.id));if(selected?.id===tpl.id){setSelected(null);setParagraphs([]);}}} style={{fontSize:11,color:T.muted,cursor:"pointer"}}>✕</span>}
+                    </div>
+                  </div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:4}}>
+                    {tpl.tags.slice(0,3).map(tag=><span key={tag} style={{fontSize:10,padding:"1px 5px",borderRadius:99,background:act?`${cfg.color}15`:T.bg,color:act?cfg.color:T.muted,border:`1px solid ${act?cfg.border:T.border}`}}>{tag}</span>)}
+                  </div>
+                </div>
+              );})}
+            </div>
+            <div style={{borderTop:`1px solid ${T.border}`,padding:"10px 14px",flexShrink:0}}>
+              <div style={{fontSize:11,fontWeight:600,letterSpacing:"0.06em",color:T.muted,textTransform:"uppercase",marginBottom:7}}>Variabelen</div>
+              {Object.keys(vars).map(key=>(
+                <div key={key} style={{display:"flex",alignItems:"center",gap:7,marginBottom:5}}>
+                  <div style={{fontSize:11,color:T.muted,width:90,flexShrink:0}}>{key}</div>
+                  <input value={vars[key]} onChange={e=>handleVarChange(key,e.target.value)} placeholder="Invullen..." style={{...inp,padding:"4px 7px",fontSize:12}}/>
+                </div>
+              ))}
+            </div>
+          </div>
+          <OutputPanel isBuilder={false}/>
+        </div>
+      )}
+
+      {/* NIEUW */}
+      {tab==="nieuw"&&(
+        <div style={{display:"flex",justifyContent:"center",padding:32,overflowY:"auto"}}>
+          <div style={{background:T.surface,borderRadius:14,padding:28,border:`1px solid ${T.border}`,width:"100%",maxWidth:580}}>
+            <div style={{fontSize:17,fontWeight:700,marginBottom:4}}>＋ Nieuw template</div>
+            <div style={{fontSize:13,color:T.sub,marginBottom:22}}>Voeg een eigen template toe aan de bibliotheek.</div>
+            <div style={{display:"grid",gridTemplateColumns:"52px 1fr",gap:9,marginBottom:12}}>
+              <input value={nEmoji} onChange={e=>setNEmoji(e.target.value)} style={{...inp,textAlign:"center",fontSize:20,padding:"8px 4px"}}/>
+              <input value={nLabel} onChange={e=>setNLabel(e.target.value)} placeholder="Naam van het template..." style={inp}/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9,marginBottom:12}}>
+              <div>
+                <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Categorie</div>
+                <select value={nCat} onChange={e=>setNCat(e.target.value)} style={inp}>{CATS.map(c=><option key={c} value={c}>{gc(c).icon} {c}</option>)}</select>
+              </div>
+              <div>
+                <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Tags</div>
+                <input value={nTags} onChange={e=>setNTags(e.target.value)} placeholder="tag1, tag2" style={inp}/>
+              </div>
+            </div>
+            <div style={{marginBottom:18}}>
+              <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Tekst</div>
+              <textarea value={nBody} onChange={e=>setNBody(e.target.value)} placeholder="Begin met Hoi [Klant], ..." style={{...inp,minHeight:200,resize:"vertical",lineHeight:1.7,padding:"10px 12px"}}/>
+            </div>
+            <button onClick={saveNew} disabled={!nLabel.trim()||!nBody.trim()} style={{...btn({width:"100%",background:nLabel.trim()&&nBody.trim()?TH.accent:"#CBD5E0",color:"#fff",fontSize:14,padding:"12px"})}}>＋ Template opslaan</button>
+          </div>
+        </div>
+      )}
+
+      {toast&&<Toast msg={toast} onDone={()=>setToast(null)}/>}
+    </div>
+  );
+}
